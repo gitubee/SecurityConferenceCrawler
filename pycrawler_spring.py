@@ -69,13 +69,14 @@ def gethtmltext(url):#以agent为浏览器的形式访问网页,返回源码,参
 '''
 
 
-def getarticleinfo(article_url,session,number,conf_str):
+def getarticleinfo_springer(article_url,session,number,conf_str):
     global conn
     global cursor
     
     html=gethtmltext(article_url)
     html=etree.HTML(html)
 
+    #get all the node info
     article_title=html.xpath('//h1/text()|//h1//node()/text()')
     article_title=''.join(article_title)
     keywords=html.xpath('//div[@class="KeywordGroup"]/span[@class="Keyword"]/text()')
@@ -91,11 +92,11 @@ def getarticleinfo(article_url,session,number,conf_str):
     doi=doi.get('content').strip()
     citation_num=html.xpath('//div[@class="main-context__column"]/ul[@id="book-metrics"]/li[1]/a/span[@id="chaptercitations-count-number"]/text()')
     citation_count=0
-    '''
+    
     if len(citation_num)>0:
         citation_count=int(citation_num[0].strip())
-        '''
     
+    #get the athur inst info
     author_node=html.xpath('//section[@id="authorsandaffiliations"]/div/ul/li')
     inst_node=html.xpath('//section[@id="authorsandaffiliations"]/div/ol/li')
     all_author=[]
@@ -105,7 +106,6 @@ def getarticleinfo(article_url,session,number,conf_str):
     all_inst=[]
     all_city=[]
     all_country=[]
-    # get the citation number
     
 
     # get the author name and cross infer list
@@ -185,7 +185,7 @@ def getarticleinfo(article_url,session,number,conf_str):
     return
 
 
-def crawlconf_springer2005(start_num,conf_url,conf_str):
+def crawlconf_springer(start_num,conf_url,conf_str):
     
     global pre_url
     global restart_pos
@@ -229,9 +229,9 @@ def crawlconf_springer2005(start_num,conf_url,conf_str):
             # restart_pos for situation when you need to restart from some article 
             if article_count>=restart_pos:
                 try:
-                    getarticleinfo(article_url,session_title,article_count,conf_str)
+                    getarticleinfo_springer(article_url,session_title,article_count,conf_str)
                 except Exception as e:
-                    f=open('./'+error_file,'r+')
+                    f=open('./'+error_file,'a+')
                     f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
                     f.write('#'*30+str(article_count)+'\n')
                     f.write(repr(e))
@@ -295,7 +295,7 @@ def crawlconflink(dblp_index):
         for ep in eb[1:]:
             this_url=ep.get('href')
             print(this_url)
-            start_num=crawlconf_springer2005(start_num,this_url,conf_str)
+            start_num=crawlconf_springer(start_num,this_url,conf_str)
         restart_pos=0
     return
     
