@@ -49,8 +49,8 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     article_kind=article_kind[0]
     #set sql string and re str
     insert_sql="insert into article_info_ccs(conf,year,number,title,doi,authors,inst_info,firstpage,lastpage,\
-    kind,session,index_terms,keywords,article_url,pdf_url)\
-    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+    kind,session,index_terms,keywords,pdf_url)\
+    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
 
     s_rep=re.compile(r'\s+')
     num_find=re.compile(r'[0-9]+')
@@ -62,13 +62,18 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     article_title=''.join(article_title)
     article_title=s_rep.sub(' ',article_title)
     # page numbers
-    page_str=html.xpath('//span[@class="epub-section__pagerange"]/text()')[0]
+    page_str=html.xpath('//span[@class="epub-section__pagerange"]/text()')
     first_page=0
     last_page=0
-    all_num=num_find.findall(page_str)
-    if len(all_num)==2:
-        first_page=int(all_num[0])
-        last_page=int(all_num[1])
+    if len(page_str)>0:
+        page_str=page_str[0]
+        all_num=num_find.findall(page_str)
+        if len(all_num)==1:
+            first_page=int(all_num[0])
+            last_page=int(all_num[0])
+        elif len(all_num)==2:
+            first_page=int(all_num[0])
+            last_page=int(all_num[1])
     #pdf urls
     pdf_url_node=html.xpath('//a[@title="PDF"]/@href')
     pdf_url=''
@@ -85,9 +90,13 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     for en in all_nodes:
         this_author=en.xpath('./a/@title')[0]
         this_author=s_rep.sub(' ',this_author).strip()
-        this_inst=en.xpath('./a/span[@class="loa__author-info"]/span[@class="loa_author_inst"]/p/text()')[0]
-        this_inst=s_rep.sub(' ',this_inst).strip()
-        this_inst=this_inst.replace(';',',')
+        this_inst=en.xpath('./a/span[@class="loa__author-info"]/span[@class="loa_author_inst"]/p/text()')
+        if len(this_inst)>0:
+            this_inst=this_inst[0]
+            this_inst=s_rep.sub(' ',this_inst).strip()
+            this_inst=this_inst.replace(';',',')
+        else:
+            this_inst=''
         all_authors.append(this_author)
         all_inst_infos.append(this_inst)
         
@@ -102,13 +111,13 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     oa=';'.join(all_authors)
     oii=';'.join(all_inst_infos)
     oit=';'.join(all_index_terms)
-
-    cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,article_doi,oa,oii,first_page,last_page,article_kind,session,oit,ok,article_url,pdf_url))
+    
+    cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,article_doi,oa,oii,first_page,last_page,article_kind,session,oit,ok,pdf_url))
     conn.commit()
     return 1
 
 
-def crawlconf_ccs(start_num,conf_url,conf_str):
+def crawlconf_ccs2003(start_num,conf_url,conf_str):
     global pre_url
     global restart_pos
     global error_file
@@ -116,17 +125,12 @@ def crawlconf_ccs(start_num,conf_url,conf_str):
     html=gethtmltext(conf_url)
     html=etree.HTML(html)
     session_title=''
-    
     article_count=start_num
-    node_count=0
-
-    
     # set the xpath find str
     session_node='//div[@class="toc__section accordion-tabbed__tab"]'
     all_node=html.xpath(session_node)
     #conf_title=all_node[0].xpath('//title/text()')
     #print(conf_title)
-
     # process each node which contains each session
     for es in all_node:
         # get the article info and save into the mysql database,
@@ -138,25 +142,78 @@ def crawlconf_ccs(start_num,conf_url,conf_str):
         all_doi=doi_str.split(r',')
         session_title=es.xpath('./a/text()')
         for ed in all_doi:
-            print(ed)
+            ed=ed.strip()
+            if len(ed)<17:
+                continue
+            if article_count<restart_pos:
+                article_count+=1
+                continue
             ret_num=0
-            if article_count>=restart_pos:
-                try:
-                    ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
-                
-                except Exception as e:
-                    f=open('./'+error_file,'a+')
-                    f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
-                    f.write('#'*30+str(article_count)+'\n')
-                    f.write(repr(e))
-                    f.close()
-                    ret_num=1
-                
+            try:
+                print('='*10+'this is '+str(article_count)+' article =========')
+                print(ed)
+                ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
+            except Exception as e:
+                f=open('./'+error_file,'a+')
+                f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
+                f.write('#'*30+str(article_count)+'\n')
+                f.write(repr(e))
+                f.close()
+                ret_num=1
             article_count=article_count+ret_num
-        node_count=node_count+1
     # return the article count for the following url of the same conf
     return article_count
 
+
+def crawlconf_ccs1993(start_num,conf_url,conf_str):
+    global pre_url
+    global restart_pos
+    global error_file
+    
+    html=gethtmltext(conf_url)
+    html=etree.HTML(html)
+    session_title=''
+    article_count=start_num
+    # set the xpath find str
+    session_node='//div[@class="toc__section"]'
+    all_node=html.xpath(session_node)
+    #conf_title=all_node[0].xpath('//title/text()')
+    #print(conf_title)
+    # process each node which contains each session
+    for es in all_node:
+        # get the article info and save into the mysql database,
+        # restart_pos for situation when you need to restart from some article
+        all_doi=es.xpath('./div[@class="issue-item-container"]/div/label[@class="checkbox--primary"]/input/@name')
+        if len(all_doi)==0:
+            continue
+        session_title=es.xpath('./div[@class="left-bordered-title section__title"]/text()')
+        if len(session_title)>0:
+            session_title=session_title[0]
+        else:
+            session_title=''
+        for ed in all_doi:
+            ed=ed.strip()
+            ret_num=0
+            if len(ed)<18:
+                continue
+            if article_count<restart_pos:
+                article_count+=1
+                continue
+            try:
+                print('='*10+'this is '+str(article_count)+' article =========')
+                print(ed)
+                ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
+            except Exception as e:
+                f=open('./'+error_file,'a+')
+                f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
+                f.write('#'*30+str(article_count)+'\n')
+                f.write(repr(e)+'\n')
+                f.close()
+                ret_num=1
+                
+            article_count=article_count+ret_num
+    # return the article count for the following url of the same conf
+    return article_count
 
 #stop using this function 
 #reserve to crawl the data of dblp
@@ -251,7 +308,7 @@ def crawlconflink(dblp_index):
     conf_str=['CCS',2020]
     this_year=2020
     start_num=0
-    for eb in all_block:
+    for eb in all_block[11:]:
         conf_name=eb[0].text
         print('='*30)
         print(conf_name)
@@ -261,7 +318,7 @@ def crawlconflink(dblp_index):
                 this_year=ei
                 break
         conf_str[1]=this_year
-        this_year=this_year-1
+        
         for ec in conf_abbr_list:
             if ec in conf_name:
                 conf_str[0]=ec
@@ -270,88 +327,38 @@ def crawlconflink(dblp_index):
         for ep in eb[1:]:
             this_url=ep.get('href')
             print(this_url)
-            start_num=crawlconf_ccs(start_num,this_url,conf_str)
+            if this_year>=2003:
+                start_num=crawlconf_ccs2003(start_num,this_url,conf_str)
+            else:
+                start_num=crawlconf_ccs1993(start_num,this_url,conf_str)
+        this_year=this_year-1
         restart_pos=0
     return
 
 dblp_index_CCS='https://dblp.uni-trier.de/db/conf/ccs/index.html'
 
+restart_pos=0
 test_conf_url='http://dl.acm.org/citation.cfm?id=2660267'
 test_article_doi1='10.1145/2976749.2978303'
 test_article_doi2='10.1145/3243734.3243760'
 #crawlconflink(dblp_index_CCS)
-crawlconf_ccs(30,test_conf_url,['CCS',2019])
+
+conf_url_ccs_11_04=['https://dl.acm.org/doi/proceedings/10.1145/2046707','https://dl.acm.org/doi/proceedings/10.1145/1866307',
+'https://dl.acm.org/doi/proceedings/10.1145/1653662','https://dl.acm.org/doi/proceedings/10.1145/1455770',
+'https://dl.acm.org/doi/proceedings/10.1145/1315245','https://dl.acm.org/doi/proceedings/10.1145/1180405',
+'https://dl.acm.org/doi/proceedings/10.1145/1102120','https://dl.acm.org/doi/proceedings/10.1145/1030083']
+this_year=2011
+restart_pos=0
+for ec in conf_url_ccs_11_04:
+    start_num=0
+    if this_year==2007 or this_year==2006 or this_year==2004:
+        start_num=1
+    crawlconf_ccs2003(start_num,ec,['CCS',this_year])
+    this_year=this_year-1
+    restart_pos=0
+#crawlconf_ccs(30,test_conf_url,['CCS',2019])
 #getarticleinfo_ccs(test_article_doi1,'test',1,['CCS',1111])
 
 
-conf_url_dblpccs2005='https://dblp.uni-trier.de/db/conf/ccs/ccs2005.html'
-conf_url_dblpccs2006='https://dblp.uni-trier.de/db/conf/ccs/ccs2006.html'
-conf_url_dblpccs2007='https://dblp.uni-trier.de/db/conf/ccs/ccs2007.html'
-conf_url_dblpccs2008='https://dblp.uni-trier.de/db/conf/ccs/ccs2008.html'
-conf_url_dblpccs2009='https://dblp.uni-trier.de/db/conf/ccs/ccs2009.html'
-conf_url_dblpccs2010='https://dblp.uni-trier.de/db/conf/ccs/ccs2010.html'
-conf_url_dblpccs2011='https://dblp.uni-trier.de/db/conf/ccs/ccs2011.html'
-conf_url_dblpccs2012='https://dblp.uni-trier.de/db/conf/ccs/ccs2012.html'
-conf_url_dblpccs2013='https://dblp.uni-trier.de/db/conf/ccs/ccs2013.html'
-conf_url_dblpccs2014='https://dblp.uni-trier.de/db/conf/ccs/ccs2014.html'
-conf_url_dblpccs2015='https://dblp.uni-trier.de/db/conf/ccs/ccs2015.html'
-conf_url_dblpccs2016='https://dblp.uni-trier.de/db/conf/ccs/ccs2016.html'
-conf_url_dblpccs2017='https://dblp.uni-trier.de/db/conf/ccs/ccs2017.html'
-conf_url_dblpccs2018='https://dblp.uni-trier.de/db/conf/ccs/ccs2018.html'
-conf_url_dblpccs2019='https://dblp.uni-trier.de/db/conf/ccs/ccs2019.html'
-
-'''
-sql_str[1]=2005
-crawlconf_dblpccs2005(conf_url_dblpccs2005)
-
-sql_str[1]=2006
-crawlconf_dblpccs2005(conf_url_dblpccs2006)
-'''
-'''
-sql_str[1]=2007
-crawlconf_dblpccs2005(conf_url_dblpccs2007)
-
-sql_str[1]=2008
-crawlconf_dblpccs2005(conf_url_dblpccs2008)
-
-sql_str[1]=2009
-crawlconf_dblpccs2005(conf_url_dblpccs2009)
-'''
-'''
-sql_str[1]=2010
-crawlconf_dblpccs2005(conf_url_dblpccs2010)
-
-sql_str[1]=2011
-crawlconf_dblpccs2005(conf_url_dblpccs2011)
-'''
-'''
-sql_str[1]=2012
-crawlconf_dblpccs2005(conf_url_dblpccs2012)
-'''
-'''
-sql_str[1]=2013
-crawlconf_dblpccs2005(conf_url_dblpccs2013)
-'''
-'''
-sql_str[1]=2014
-crawlconf_dblpccs2005(conf_url_dblpccs2014)
-
-sql_str[1]=2015
-crawlconf_dblpccs2005(conf_url_dblpccs2015)
-'''
-'''
-sql_str[1]=2016
-crawlconf_dblpccs2005(conf_url_dblpccs2016)
-
-sql_str[1]=2017
-crawlconf_dblpccs2005(conf_url_dblpccs2017)
-'''
-'''
-sql_str[1]=2018
-crawlconf_dblpccs2005(conf_url_dblpccs2018)
-
-sql_str[1]=2019
-crawlconf_dblpccs2005(conf_url_dblpccs2019)
-'''
 cursor.close()
 conn.close()
