@@ -231,7 +231,7 @@ def extractblock(pdf_str,article_title,author_list):
     for i in range(len(pdf_author_block)):
         for j in pdf_author_block[i]:
             if have_comment or cross_infer:
-                j=tag_delect.sub('',j)
+                j=tag_detect.sub('',j)
             clear_all_author.append(j)
     
     #根据之前的信息，输出作者列表，机构列表，对应关系列表
@@ -263,7 +263,7 @@ def extractblock(pdf_str,article_title,author_list):
         infer_num=0
         for i in range(len(pdf_author_block)):
             repeat_sign=False
-            temp_inst=','.join(inst_block[i])
+            temp_inst=','.join(all_inst_block[i])
             for j in range(len(link_inst_block)):
                 if temp_inst == link_inst_block[j]:
                     repeat_sign=True
@@ -274,7 +274,7 @@ def extractblock(pdf_str,article_title,author_list):
             else:
                 infer_num=len(link_inst_block)
                 link_inst_block.append(temp_inst)
-                temp_inst_block.append(inst_block[i])
+                temp_inst_block.append(all_inst_block[i])
             for j in range(len(pdf_author_block[i])):
                 author_inst_infer_list.append([infer_num])
                 
@@ -284,11 +284,150 @@ def extractblock(pdf_str,article_title,author_list):
     return [pdf_title,clear_all_author,all_inst_block,match_sign,author_inst_infer_list]
 
 class PDFReader:
-    def __init__(self,readfile,start_page=0,save_file='',read_end=1):
+    block_string=[['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
+    ['INTRODUCTION','1 INTRODUCTION','Introduction'],['CCS CONCEPTS']]
+
+    
+
+    def __init__(self,read_file,start_page=0,save_file='',read_end=1):
+
         self.read_file=read_file
-        self.start_page=start_page
         self.save_file=save_file
+        self.sfp=None
+        self.rfp=None
+
+        self.now_para=''
+        self.now_part=''
+        self.now_part_kind=0
+        self.all_part=[]
+        self.all_part_kind=[]
+        self.part_count=0
         self.read_end=read_end
+
+        self.start_page=start_page
+        self.now_page_num=0
+    
+        
+        return 
+    def startread(self):
+        if self.save_file is not '':
+            self.sfp=open(self.save_file,'a')
+
+        try:
+            if self.save_file.startswith('http'):
+                file_string=urlopen(self.save_file).read()
+                all_content=BytesIO(file_string)
+            else:
+                all_content=open(self.save_file,'rb')
+        except Exception as e:
+            print('Error:',e)
+            return False
+            
+        #来创建一个pdf文档分析器
+        parser = PDFParser(all_content)
+        #创建一个PDF文档对象存储文档结构
+        document = PDFDocument(parser)
+        # 检查文件是否允许文本提取
+        if not document.is_extractable:
+            raise PDFTextExtractionNotAllowed
+        else:
+            # 创建一个PDF资源管理器对象来存储共赏资源
+            rsrcmgr=PDFResourceManager()
+            # 设定参数进行分析
+            laparams=LAParams()
+            # 创建一个PDF设备对象
+            device=PDFPageAggregator(rsrcmgr,laparams=laparams)
+            # 创建一个PDF解释器对象
+            interpreter=PDFPageInterpreter(rsrcmgr,device)
+            # 只需要处理第一页
+            all_pages=PDFPage.create_pages(document)
+            #first_page =all_pages.__next__()
+            #second_page=all_pages.__next__()
+            now_page_num=0
+            for page in all_pages:
+                if self.now_page_num<self.start_page:
+                    now_page_num=now_page_num+1
+                    continue
+                interpreter.process_page(page)
+                    # 接受该页面的LTPage对象
+                layout=device.get_result()
+                dyextractLT(layout)
+                if self.part_count>=self.read_end:
+                    break
+                self.now_page_num+=1
+        all_content.close()
+        return True
+    def savepara(self):
+        s_rep=re.compile(r'\s+')
+        temp_para=s_rep.sub(self.now_para,' ').strip()
+        self.now_para=0
+        if temp_para=='':
+            return 
+        base_kind=1
+        find_sign=False
+        for ekp in self.block_string:
+            find_sign=False
+            for ekpk in ekp:
+                if temp_para.startswith(ekpk):
+                    find_sign=True
+                    break
+            if find_sign:
+                break
+            base_kind+=1
+        if find_sign:
+            self.all_part.append(self.now_part)
+            self.all_part_kind.append(self.now_part_kind)
+            self.now_part=temp_para
+            self.now_part_kind=base_kind
+        else:
+            self.now_part+='\n'+temp_para
+        return
+    def dyextractLT(self,each_ltobj):
+        print(each_ltobj.__class__.__name__)
+        for x in each_ltobj:
+            #遍历所有子对象，处理
+            if isinstance(x,LTChar):
+                if b>500:
+                    break
+                b=b+1
+                now_bbox=x.bbox
+                #print(now_bbox)
+                if up_pos>=now_bbox[1] and down_pos<=now_bbox[3]:
+                    if pre_end<now_bbox[0]:
+                        temp_line=temp_line+' '
+                        #print(' ',end='')
+                else:
+                    #self.savepara(temp_line)
+                    temp_line=''
+                    #print('\n',end='')
+                up_pos=now_bbox[1]+shift
+                down_pos=now_bbox[3]-shift
+                temp_line=temp_line+x.get_text()
+                #print(x.get_text(),end='')
+                pre_end=now_bbox[2]+shift
+
+            else:
+                if temp_line is not '':
+                    #self.savepara(temp_line)
+                    temp_line=''
+                if isinstance(x,LTTextBoxHorizontal) or isinstance(x,LTTextBox):
+                    #savepara(x.get_text())
+                    #print(x.get_text(),end='')
+                
+                elif isinstance(x,LTTextLine):
+                    #writeinfp(x.get_text())
+                    #print(x.get_text(),end='')
+
+                elif isinstance(x,LTFigure):
+                    dyextractLT(x)
+        if temp_line is not '':
+            #writeinfp(temp_line)
+            temp_line=''
+            print('')
+        return
+
+
+'''
 def writeinfp(each_line):
     each_line=each_line.strip()
     if each_line is '':
@@ -306,7 +445,7 @@ def writeinfp(each_line):
     if read_mod is 1:
         file_point.write(each_line+'\n')
     return
-
+'''
     
 def dyextractLT(each_ltobj):
     count1=0                                                                               
@@ -535,8 +674,8 @@ print(test_str)
 #QQQQQQQ  可能有作者不使用逗号分割自己的名字，以及
 
 #QQQQQQQ 有的作者邮箱和机构连在一起，
-https://www.ndss-symposium.org/ndss2017/ndss-2017-programme/
-tumblebit-untrusted-bitcoin-compatible-anonymous-payment-hub/
+#https://www.ndss-symposium.org/ndss2017/ndss-2017-programme/
+#tumblebit-untrusted-bitcoin-compatible-anonymous-payment-hub/
 #AAAAAA  替换大括号时替换为
 
 
