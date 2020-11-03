@@ -282,7 +282,13 @@ def extractblock(pdf_str,article_title,author_list):
                     
 
     return [pdf_title,clear_all_author,all_inst_block,match_sign,author_inst_infer_list]
-    
+
+class PDFReader:
+    def __init__(self,readfile,start_page=0,save_file='',read_end=1):
+        self.read_file=read_file
+        self.start_page=start_page
+        self.save_file=save_file
+        self.read_end=read_end
 def writeinfp(each_line):
     each_line=each_line.strip()
     if each_line is '':
