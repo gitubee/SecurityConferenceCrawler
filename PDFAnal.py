@@ -420,13 +420,13 @@ class PDFReader:
                     #savepara(x.get_text())
                     #print(x.get_text(),end='')
                 elif isinstance(x,LTFigure):
-                    dyextractLT(x)
+                    self.dyextractLT(x)
         if self.now_para is not '':
             self.savepara()
         return
 
 
-
+'''
 def writeinfp(each_line):
     each_line=each_line.strip()
     if each_line is '':
@@ -609,7 +609,7 @@ if __name__=='__main__':
     print(pdf_ex[2])
     print(pdf_ex[3])
     print(pdf_ex[4])
-
+'''
 '''
 test_pa=re.compile(r'{.+?}')
 test_str='afd eb, {ase ,resf}@.edu, {zq,yq}@mail, jxt@mail'
