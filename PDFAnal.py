@@ -426,6 +426,7 @@ class PDFReader:
         return
 
 
+
 '''
 def writeinfp(each_line):
     each_line=each_line.strip()
