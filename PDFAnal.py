@@ -5,7 +5,7 @@ from pdfminer.pdfpage import PDFTextExtractionNotAllowed
 from pdfminer.pdfinterp import PDFResourceManager
 from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.pdfdevice import PDFDevice
-from pdfminer.layout import *
+from pdfminer.layout import LTChar,LTTextLine,LTTextBox,LTFigure,LAParams,LTTextBoxHorizontal
 from pdfminer.converter import PDFPageAggregator
 from urllib.request import urlopen
 from io import StringIO,BytesIO
@@ -34,7 +34,7 @@ def readmail(mail_str):
 def extractblock(pdf_str,article_title,author_list):
 
     #首先替换所有的cid;num格式的字符
-    all_cid=re.findall('\(cid:(\d+)\)',pdf_str)
+    all_cid=re.findall(r'\(cid:(\d+)\)',pdf_str)
     all_cid=list(set(all_cid))
     base_num=9
     if len(all_cid)>9:
@@ -286,9 +286,6 @@ def extractblock(pdf_str,article_title,author_list):
 class PDFReader:
     block_string=[['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
     ['INTRODUCTION','1 INTRODUCTION','Introduction'],['CCS CONCEPTS']]
-
-    
-
     def __init__(self,read_file,start_page=0,save_file='',read_end=1):
 
         self.read_file=read_file
@@ -306,8 +303,8 @@ class PDFReader:
 
         self.start_page=start_page
         self.now_page_num=0
-    
-        
+
+        self.pre_para_end=0
         return 
     def startread(self):
         if self.save_file is not '':
@@ -351,7 +348,8 @@ class PDFReader:
                 interpreter.process_page(page)
                     # 接受该页面的LTPage对象
                 layout=device.get_result()
-                dyextractLT(layout)
+                self.dyextractLT(layout)
+                self.pre_para_end=0
                 if self.part_count>=self.read_end:
                     break
                 self.now_page_num+=1
@@ -383,51 +381,52 @@ class PDFReader:
             self.now_part+='\n'+temp_para
         return
     def dyextractLT(self,each_ltobj):
-        print(each_ltobj.__class__.__name__)
+        pre_wid=0
+        pre_hei=0
+        up_pos=0
+        down_pos=0
+        pre_end=0
+
         for x in each_ltobj:
             #遍历所有子对象，处理
-            if isinstance(x,LTChar):
-                if b>500:
-                    break
-                b=b+1
-                now_bbox=x.bbox
-                #print(now_bbox)
-                if up_pos>=now_bbox[1] and down_pos<=now_bbox[3]:
-                    if pre_end<now_bbox[0]:
-                        temp_line=temp_line+' '
-                        #print(' ',end='')
+            print(each_ltobj.__class__.__name__)
+            now_bbox=x.bbox
+            #print(now_bbox)
+            if isinstance(x,LTChar) or isinstance(x,LTTextLine):
+                x_str=x.get_text()
+                char_count=len(x_str)
+                this_wid=now_bbox[2]-now_bbox[0]
+                this_hei=now_bbox[1]-now_bbox[3]
+                c_wid=this_wid/char_count
+                if up_pos>now_bbox[3] or down_pos<now_bbox[1]:
+                    if up_pos!=now_bbox[1] or down_pos!=now_bbox[3] or pre_end<now_bbox[0]:
+                        self.now_para=self.now_para+' '
                 else:
-                    #self.savepara(temp_line)
-                    temp_line=''
-                    #print('\n',end='')
-                up_pos=now_bbox[1]+shift
-                down_pos=now_bbox[3]-shift
-                temp_line=temp_line+x.get_text()
-                #print(x.get_text(),end='')
-                pre_end=now_bbox[2]+shift
-
+                    if this_hei!=pre_hei or pre_end<(self.pre_para_end-2*c_wid):
+                        self.savepara()
+                self.now_para=x_str
+                
+                if pre_end >self.pre_para_end:
+                    self.pre_para_end=pre_end
+                up_pos=now_bbox[1]
+                down_pos=now_bbox[3]
+                pre_hei=this_hei
+                pre_end=now_bbox[2]
             else:
-                if temp_line is not '':
-                    #self.savepara(temp_line)
-                    temp_line=''
+                self.savepara()
                 if isinstance(x,LTTextBoxHorizontal) or isinstance(x,LTTextBox):
+                    self.now_para=x.get_text()
+                    self.savepara()
                     #savepara(x.get_text())
                     #print(x.get_text(),end='')
-                
-                elif isinstance(x,LTTextLine):
-                    #writeinfp(x.get_text())
-                    #print(x.get_text(),end='')
-
                 elif isinstance(x,LTFigure):
                     dyextractLT(x)
-        if temp_line is not '':
-            #writeinfp(temp_line)
-            temp_line=''
-            print('')
+        if self.now_para is not '':
+            self.savepara()
         return
 
 
-'''
+
 def writeinfp(each_line):
     each_line=each_line.strip()
     if each_line is '':
@@ -445,7 +444,7 @@ def writeinfp(each_line):
     if read_mod is 1:
         file_point.write(each_line+'\n')
     return
-'''
+
     
 def dyextractLT(each_ltobj):
     count1=0                                                                               
@@ -523,7 +522,7 @@ def Pdf2Txt(Path,write_file='',search_page=0):
         file_point=None
     else:
         read_mod=1
-        file_point=open(wirte_file,'a')
+        file_point=open(write_file,'a')
             
     mod=read_mod
 
@@ -615,11 +614,12 @@ if __name__=='__main__':
 test_pa=re.compile(r'{.+?}')
 test_str='afd eb, {ase ,resf}@.edu, {zq,yq}@mail, jxt@mail'
 test_str=test_pa.sub('',test_str)
-print(test_str)'''
+print(test_str)
+'''
 
 '''
 test_str='(cid:45),cdi()eageg345  q3 r afswe(cid:) (cid:1),(cid:45)'
-all_cid=re.findall('\(cid:(\d+)\)',test_str)
+#all_cid=re.findall('\(cid:(\d+)\)',test_str)
 all_cid=list(set(all_cid))
 cid_dict={}
 base=9
