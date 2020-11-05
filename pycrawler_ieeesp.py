@@ -5,7 +5,7 @@ import pymysql
 from lxml import etree
 import string
 
-conn = pymysql.connect('localhost', user='root',password='root',database='pylink1',charset='utf8')
+conn = pymysql.connect('localhost', user='root',password='123456',database='secconf',charset='utf8mb4')
 cursor = conn.cursor()
 
 pre_url='https://ieeexplore.ieee.org'
@@ -23,6 +23,25 @@ def gethtmltext(url):#以agent为浏览器的形式访问网页,返回源码,参
         return 'error'
     return
 
+def compressinst(all_inst):
+    all_comp_inst=[]
+    cross_infer=[]
+    find_sign=False
+    find_num=-1
+    for ei in all_inst:
+        find_sign=False
+        for j in range(len(all_comp_inst)):
+            if ei == all_comp_inst[j]:
+                find_sign=True
+                find_num=j
+                break
+            if find_sign:
+                cross_infer.append(find_num)
+            else:
+                cross_infer.append(len(all_comp_inst))
+                all_comp_inst.append(ei)
+    return cross_infer,all_comp_inst
+                
 
 def getarticleinfo_ieeesp(article_url,session_title,number):
     global conn
@@ -34,38 +53,55 @@ def getarticleinfo_ieeesp(article_url,session_title,number):
     html=etree.HTML(html)
 
 
-    insert_sql="insert into ieeesp_article_info(conf_name,year,number,title,all_author,all_info,session_title,keywords,article_url,pdf_url)\
-                values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+    insert_sql="insert into ieeesp_article_info() values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
     info_path='//script[@type="text/javascript"]/text()[starts-with(.,"\nvar body")]'
     #s='//body/div[@id="LayoutWrapper"]/div/div/div/script[@type="text/javascript"]/text()[contains(.,"var body")]'
     #\{"name":"([^",:]*?)","affiliation":\["([^"]*?)"\][^\}]*?\}|\{"name":"([^",:]*?)"[^\}\[\]]*?\}
     ai_re=re.compile(r'\{"name":"([^",:]*?)","affiliation":\["([^"]*?)"\][^\}]*?\}|\{"name":"([^",:]*?)",[^\}\[\]]*?\}')
-    #i_re=re.cop
-    keyword_re=re.compile(r'\{"type":"IEEE Keywords","kwd":\[(.*?)\]\}')
+    IEEE_keyword_re=re.compile(r'\{"type":"IEEE Keywords","kwd":\[([^\]]*?)\]\}')
+    INSPEC_CI_keyword_re=re.compile(r'\{{"type":"INSPEC: Controlled Indexing","kwd":\[([^\]]*?)\]\}')
+    INSPEC_NCI_keyword_re=re.compile(r'\{{"type":"INSPEC: Non-Controlled Indexing","kwd":\[([^\]]*?)\]\}')
     each_keyword_re=re.compile(r'"([^"]*?)"')
     pdf_url_re=re.compile(r'"pdfUrl":"([^"]*?)"')
+    doi_re=re.compile(r'"doi":"([^"]*?)"')
 
     title_path='//title/text()'
     article_title=html.xpath(title_path)[0]
-    #print(article_title)
+    article_title=str(article_title)
+    article_title=article_title.replace(' - IEEE Conference Publication','').strip()
+    
+    #get the string that contains the information
     info_str=html.xpath(info_path)[0]
     info_str=str(info_str)
     #print(info_str)
 
-    article_title=str(article_title)
-    article_title=article_title.replace(' - IEEE Conference Publication','').strip()
 
+    IEEE_keyword_str=IEEE_keyword_re.findall(info_str)
+    IEEE_keyword_str=str(IEEE_keyword_str)
+    all_IEEE_keyword=each_keyword_re.findall(IEEE_keyword_str)
+    
+    INSPEC_CI_keyword_str=INSPEC_CI_keyword_re.findall(info_str)
+    INSPEC_CI_keyword_str=str(INSPEC_CI_keyword_str)
+    all_INSPEC_CI_keyword=each_keyword_re.findall(INSPEC_CI_keyword_str)
+
+    INSPEC_NCI_keyword_str=INSPEC_NCI_keyword_re.findall(info_str)
+    INSPEC_NCI_keyword_str=str(INSPEC_NCI_keyword_str)
+    all_INSPEC_NCI_keyword=each_keyword_re.findall(INSPEC_NCI_keyword_str)
+
+    pdf_url=''
+    pdf_str=pdf_url_re.findall(info_str)
+    if len(pdf_str)>0:
+        pdf_url=pre_url+pdf_str[0]
+    doi=''
+    doi_str=doi_re.findall(info_str)
+    if len(doi_str)>0:
+        doi=doi_str[0]
     
     all_ai=ai_re.findall(info_str)
     #print(all_ai)
     all_author=[]
     all_inst=[]
-    keyword_str=keyword_re.findall(info_str)
-    keyword_str=str(keyword_str)
-    all_keyword=each_keyword_re.findall(keyword_str)
-    all_keyword=';'.join(all_keyword)
-    pdf_url=pdf_url_re.findall(info_str)[0]
-    pdf_url=pre_url+pdf_url
+    
 
     for each_pair in all_ai:
         if each_pair[0]=='':
@@ -74,16 +110,21 @@ def getarticleinfo_ieeesp(article_url,session_title,number):
         else:
             all_author.append(each_pair[0])
             all_inst.append(each_pair[1])
-
+    cross_infer,all_comp_inst=compressinst(all_inst)
     print(article_title)
     print(all_author)
-    print(all_inst)
-    print(all_keyword)
+    print(cross_infer)
+    print(all_comp_inst)
+    print(all_IEEE_keyword)
     #print(pdf_url)
     
     all_author=';'.join(all_author)
-    all_inst=';'.join(all_inst)
-    cursor.execute(insert_sql,(sql_str[0],sql_str[1],number,article_title,all_author,all_inst,session_title,all_keyword,article_url,pdf_url))
+    all_comp_inst=';'.join(all_comp_inst)
+    all_IEEE_keyword=';'.join(all_IEEE_keyword)
+    all_INSPEC_NCI_keyword=';'.join(all_INSPEC_NCI_keyword)
+    all_INSPEC_NCI_keyword=';'.join(all_INSPEC_NCI_keyword)
+
+    #cursor.execute(insert_sql,(sql_str[0],sql_str[1],number,article_title,all_author,all_inst,session_title,all_IEEE_keyword,article_url,pdf_url))
     conn.commit()
     
     
