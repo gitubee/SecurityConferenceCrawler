@@ -49,14 +49,15 @@ def extractblock(pdf_str,article_title,author_list):
     pdf_title=''
     all_line_temp=[]
     all_inst_line=[]
-    all_mail_line=[]
+    #all_mail_line=[]
     all_author_line=[]
+    '''
     for i in all_line:
         temp=i.strip()
         if i is '':
             continue
         all_line_temp.append(i)
-
+    '''
 
     
     all_line=all_line_temp

@@ -1,6 +1,5 @@
 import requests
 import re
-from bs4 import BeautifulSoup
 import pymysql
 from lxml import etree
 
@@ -29,7 +28,7 @@ gn=0
 
 def removeblock(author_list):
     global special_pattern
-    re_info=re.compile('\s+')
+    re_info=re.compile(r'\s+')
     new_list=[]
     for es in author_list:
         temp=re_info.sub(' ',es).strip()
@@ -73,7 +72,7 @@ def delauthorlist3(author_list):
         if len(all_part)<2:
             continue;
         this_inst=all_part[1]
-        re_info=re.compile('\s+')
+        re_info=re.compile(r'\s+')
         this_inst=re_info.sub(' ',this_inst)
         all_part=re.split(r'[;,]| and|and ',all_part[0])
         all_part=removeblock(all_part)
@@ -540,50 +539,6 @@ conn.close()
 #test_str=re.split(r'[:;]',test_str)
 
 #print(delauthorlist2(test_str))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def crawlconf_ndss2016(conf_url):
-    html=gethtmltext(conf_url)
-    html=etree.HTML(html)
-    conf_title=html.xpath('//title/text()')
-    session_str='//h2/a[starts-with(@name,"session")]'
-    article_str='//td[@colspan]/div[@class="row"]/div[1]'
-    print(conf_title)
-    all_node=html.xpath(session_str+'|'+article_str)
-    for es in all_node[1:10]:
-        print(es.tag)
-        if es.tag=='h4':
-            key_word_string=es.text
-            print(key_word)
-        else:
-            article_url=es.xpath('./div[2]/p/a[1]/@href')
-            print(article_url)
-            article_title=es.xpath('./div[1]/p/b/text()')
-            print(article_title)
-            author_list=es.xpath('./div[1]/p/text()|div[1]/p/em/text()')
-            print(author_list)
-    return
 
 
 
