@@ -11,7 +11,9 @@ from urllib.request import urlopen
 from io import StringIO,BytesIO
 import re
 
-
+'''
+使用pip命令安装pdfminer.six
+'''
 
 shift=0.5                                                #用于确定ltchar 分割的超参数
 author_inst_end=False
@@ -46,29 +48,29 @@ def extractblock(pdf_str,article_title,author_list):
     
     all_line=re.split(r'\n',pdf_str)
     print(all_line)
-    pdf_title=''
-    all_line_temp=[]
-    all_inst_line=[]
-    #all_mail_line=[]
-    all_author_line=[]
+    
     '''
+    all_line_temp=[]
     for i in all_line:
         temp=i.strip()
         if i is '':
             continue
         all_line_temp.append(i)
-    '''
-
-    
     all_line=all_line_temp
-    all_line_record=[]
+    '''
     
     #提取有作者的所有行
     #同时提取所有包含机构，城市，国家，街道，邮箱的所有行
+    pdf_title=''
     temp_author_block=''
     cont_sign=False
     sign=False
     author_sign=False
+    all_line_record=[]
+    all_inst_line=[]
+    all_author_line=[]
+    #all_mail_line=[]
+
     for i in range(len(all_line)):
         sign=False
         if all_line[i] in article_title:
@@ -76,14 +78,14 @@ def extractblock(pdf_str,article_title,author_list):
             pdf_title=pdf_title+' '+all_line[i]
             all_line_record.append(0)
             continue
-        
+        #判断是否包含作者，是则设置sign为true，标题段关闭
         for ea in author_list:
             if ea in all_line[i]:
                 sign=True
                 author_sign=True
                 break
+        #如果这一行包含作者，判断是否连续，连续则连接起来
         if sign:
-            author_sign=True
             if not cont_sign:
                 temp_author_block=all_line[i]
             else:
@@ -91,8 +93,9 @@ def extractblock(pdf_str,article_title,author_list):
             cont_sign=True
             all_inst_line.append('')
             all_line_record.append(1)
-            
+            #如果不是作者，则应该是机构或者标题段
         else:
+            #连续标记同时记录上一行的类型，如果为作者行，则将作者串填入作者块
             if cont_sign:
                 cont_sign=False
                 all_author_line.append(temp_author_block)
@@ -103,11 +106,11 @@ def extractblock(pdf_str,article_title,author_list):
             else:
                 pdf_title=pdf_title+' '+all_line[i]
                 all_line_record.append(0)
+    #将未塞入作者块的放进去
     if cont_sign:
         cont_sign=False
         all_author_line.append(temp_author_block)
     pdf_title=pdf_title.strip()
-        
     #提取pdf中所有作者，并根据爬取的作者信息判断pdf中作者机构的链接方式
     #print(all_author_line)
     pdf_author_block=[]
@@ -120,11 +123,9 @@ def extractblock(pdf_str,article_title,author_list):
         #首先将每个作者行，分解为单个作者
         temp_list=[]
         block_author_list=re.split(r'[,]| and |and ',all_author_line[i])
-        #print(block_author_list)
         for each_author in block_author_list:
             each_author=each_author.strip()
             sign=False
-
             #如果只有一个字符，则应该是分割出来的同一个作者隶属的的几个机构的tag之一，连接到对应作者上
             #在这里一般是前一个进入作者list的字符串
             if len(each_author) is 1:
@@ -145,8 +146,6 @@ def extractblock(pdf_str,article_title,author_list):
                     break
             #如果没有出现过，则读取最后一个字符视为机构tag，并在后续进行分辨
             if sign is not True and each_author is not '':
-                #print(each_author)
-                #print(inst_tag)
                 inst_tag.add(each_author[-1])
                 print("cant find author "+each_author)
         pdf_author_block.append(temp_list)
@@ -164,11 +163,9 @@ def extractblock(pdf_str,article_title,author_list):
         inst_tag=inst_tag[0]
         have_comment=True
     else:
-        print('error when judge cross_infer')
+        cross_infer=False
 
     #print(inst_tag)
-    
-
     
     #print(all_inst_line)
     #用于去除邮箱大括号的正则表达式
@@ -279,13 +276,12 @@ def extractblock(pdf_str,article_title,author_list):
             for j in range(len(pdf_author_block[i])):
                 author_inst_infer_list.append([infer_num])
                 
-        inst_block=temp_inst_block
-                    
-
+        all_inst_block=temp_inst_block
+        
     return [pdf_title,clear_all_author,all_inst_block,match_sign,author_inst_infer_list]
 
 class PDFReader:
-    block_string=[['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
+    block_string=[['@@INFO@@'],['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
     ['INTRODUCTION','1 INTRODUCTION','Introduction'],['CCS CONCEPTS']]
     def __init__(self,read_file,start_page=0,save_file='',read_end=1):
 
@@ -359,7 +355,7 @@ class PDFReader:
     def savepara(self):
         s_rep=re.compile(r'\s+')
         temp_para=s_rep.sub(self.now_para,' ').strip()
-        self.now_para=0
+        self.now_para=''
         if temp_para=='':
             return 
         base_kind=1
@@ -376,10 +372,16 @@ class PDFReader:
         if find_sign:
             self.all_part.append(self.now_part)
             self.all_part_kind.append(self.now_part_kind)
-            self.now_part=temp_para
+            self.now_part=temp_para+'\n'
             self.now_part_kind=base_kind
         else:
-            self.now_part+='\n'+temp_para
+            self.now_part+=temp_para+'\n'
+        return
+    def savepart(self):
+        self.all_part.append(self.now_part)
+        self.all_part_kind.append(self.now_part_kind)
+        self.now_part=''
+        self.now_part_kind=-1
         return
     def dyextractLT(self,each_ltobj):
         pre_wid=0
@@ -403,9 +405,9 @@ class PDFReader:
                     if up_pos!=now_bbox[1] or down_pos!=now_bbox[3] or pre_end<now_bbox[0]:
                         self.now_para=self.now_para+' '
                 else:
-                    if this_hei!=pre_hei or pre_end<(self.pre_para_end-2*c_wid):
+                    if this_hei!=pre_hei or pre_end<(self.pre_para_end-2*c_wid) or self.now_part_kind==0:
                         self.savepara()
-                self.now_para=x_str
+                self.now_para=self.now_para+x_str
                 
                 if pre_end >self.pre_para_end:
                     self.pre_para_end=pre_end
@@ -418,12 +420,27 @@ class PDFReader:
                 if isinstance(x,LTTextBoxHorizontal) or isinstance(x,LTTextBox):
                     self.now_para=x.get_text()
                     self.savepara()
-                    #savepara(x.get_text())
-                    #print(x.get_text(),end='')
                 elif isinstance(x,LTFigure):
                     self.dyextractLT(x)
         if self.now_para is not '':
             self.savepara()
+        if self.now_part is not '':
+            self.savepart()
+
+        return
+    def saveinfile(self):
+        if self.save_file=='':
+            return
+        try:
+            save_fp=open(self.save_file,'w')
+        except Exception as e:
+            print(e)
+            print('save_file error\n')
+            return
+        for i in range(len(self.all_part)):
+            save_fp.write(self.block_string[self.all_part_kind[i]][0]+'\n')
+            save_fp.write(self.all_part[i])
+        save_fp.close()
         return
 
 
