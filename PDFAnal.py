@@ -7,6 +7,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.pdfdevice import PDFDevice
 from pdfminer.layout import LTChar,LTTextLine,LTTextBox,LTFigure,LAParams,LTTextBoxHorizontal
 from pdfminer.converter import PDFPageAggregator
+from pdfminer.high_level import extract_text,extract_pages
 from urllib.request import urlopen
 from io import StringIO,BytesIO
 import re
@@ -283,7 +284,7 @@ def extractblock(pdf_str,article_title,author_list):
 class PDFReader:
     block_string=[['@@INFO@@'],['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
     ['INTRODUCTION','1 INTRODUCTION','Introduction'],['CCS CONCEPTS']]
-    def __init__(self,read_file,start_page=0,save_file='',read_end=1):
+    def __init__(self,read_file,start_page=0,end_page=1,save_file='',max_part_num=1):
 
         self.read_file=read_file
         self.save_file=save_file
@@ -296,23 +297,28 @@ class PDFReader:
         self.all_part=[]
         self.all_part_kind=[]
         self.part_count=0
-        self.read_end=read_end
+        self.max_part_num=max_part_num
+        self.read_end=False
 
         self.start_page=start_page
+        self.end_page=end_page
         self.now_page_num=0
 
         self.pre_para_end=0
         return 
-    def startread(self):
-        if self.save_file is not '':
-            self.sfp=open(self.save_file,'a')
+    def startread(self,start_page=0,end_page=1,max_part_num=1):
+        self.max_part_num=max_part_num
+        self.end_page=end_page
+        self.read_end=False
+        self.start_page=start_page
+        #print(self.read_file)
 
         try:
-            if self.save_file.startswith('http'):
-                file_string=urlopen(self.save_file).read()
+            if self.read_file.startswith('http'):
+                file_string=urlopen(self.read_file).read()
                 all_content=BytesIO(file_string)
             else:
-                all_content=open(self.save_file,'rb')
+                all_content=open(self.read_file,'rb')
         except Exception as e:
             print('Error:',e)
             return False
@@ -339,7 +345,8 @@ class PDFReader:
             #second_page=all_pages.__next__()
             now_page_num=0
             for page in all_pages:
-                if self.now_page_num<self.start_page:
+                print(now_page_num)
+                if now_page_num<self.start_page:
                     now_page_num=now_page_num+1
                     continue
                 interpreter.process_page(page)
@@ -347,37 +354,53 @@ class PDFReader:
                 layout=device.get_result()
                 self.dyextractLT(layout)
                 self.pre_para_end=0
-                if self.part_count>=self.read_end:
+                if self.read_end or now_page_num>=self.end_page:
+                    self.savepart()
                     break
-                self.now_page_num+=1
+                now_page_num+=1
         all_content.close()
         return True
     def savepara(self):
-        s_rep=re.compile(r'\s+')
-        temp_para=s_rep.sub(self.now_para,' ').strip()
+        s_rep1=re.compile(r'\s+')
+        s_rep2=re.compile(r' +')
+        block_rep=''
+        temp_para=self.now_para.strip()
         self.now_para=''
         if temp_para=='':
             return 
-        base_kind=1
+        base_kind=0
         find_sign=False
         for ekp in self.block_string:
             find_sign=False
             for ekpk in ekp:
                 if temp_para.startswith(ekpk):
                     find_sign=True
+                    block_rep=r'\A'
+                    block_rep+=ekpk
+                    block_rep=re.compile(block_rep)
+                    temp_para=block_rep.sub('',temp_para).strip()
                     break
             if find_sign:
                 break
             base_kind+=1
+        
+        if self.now_part_kind!=0 or find_sign:
+            temp_para=s_rep1.sub(' ',temp_para)
         if find_sign:
             self.all_part.append(self.now_part)
             self.all_part_kind.append(self.now_part_kind)
             self.now_part=temp_para+'\n'
             self.now_part_kind=base_kind
+            self.part_count+=1
         else:
             self.now_part+=temp_para+'\n'
+        if self.part_count>=self.max_part_num:
+            self.read_end=True
+        
         return
     def savepart(self):
+        if self.now_part=='':
+            return
         self.all_part.append(self.now_part)
         self.all_part_kind.append(self.now_part_kind)
         self.now_part=''
@@ -389,10 +412,10 @@ class PDFReader:
         up_pos=0
         down_pos=0
         pre_end=0
-
+        
         for x in each_ltobj:
             #遍历所有子对象，处理
-            print(each_ltobj.__class__.__name__)
+            #print(x.__class__.__name__)
             now_bbox=x.bbox
             #print(now_bbox)
             if isinstance(x,LTChar) or isinstance(x,LTTextLine):
@@ -405,7 +428,8 @@ class PDFReader:
                     if up_pos!=now_bbox[1] or down_pos!=now_bbox[3] or pre_end<now_bbox[0]:
                         self.now_para=self.now_para+' '
                 else:
-                    if this_hei!=pre_hei or pre_end<(self.pre_para_end-2*c_wid) or self.now_part_kind==0:
+                    if this_hei!=pre_hei or pre_end<(self.pre_para_end-5*c_wid) or self.now_part_kind==0:
+                        #print(self.now_para)
                         self.savepara()
                 self.now_para=self.now_para+x_str
                 
@@ -417,18 +441,19 @@ class PDFReader:
                 pre_end=now_bbox[2]
             else:
                 self.savepara()
-                if isinstance(x,LTTextBoxHorizontal) or isinstance(x,LTTextBox):
+                if  isinstance(x,LTTextBox) or isinstance(x,LTTextBoxHorizontal):
                     self.now_para=x.get_text()
+                    #print(self.now_para)
                     self.savepara()
                 elif isinstance(x,LTFigure):
                     self.dyextractLT(x)
+            if self.read_end:
+                break
         if self.now_para is not '':
             self.savepara()
-        if self.now_part is not '':
-            self.savepart()
-
         return
-    def saveinfile(self):
+    def saveinfile(self,save_file=''):
+        self.save_file=save_file
         if self.save_file=='':
             return
         try:
@@ -439,10 +464,27 @@ class PDFReader:
             return
         for i in range(len(self.all_part)):
             save_fp.write(self.block_string[self.all_part_kind[i]][0]+'\n')
-            save_fp.write(self.all_part[i])
+            save_fp.write(str(self.all_part[i]))
         save_fp.close()
         return
-
+    def printout(self):
+        for i in range(len(self.all_part)):
+            print(self.block_string[self.all_part_kind[i]][0])
+            print(self.all_part[i])
+        return
+print('test')
+if __name__ == '__main__':
+    testlink1='https://www.usenix.org/system/files/conference/usenixsecurity18/sec18-scaife.pdf'
+    test_reader1=PDFReader(testlink1)
+    test_reader1.startread(1,2,2)
+    test_reader1.printout()
+    #test_str='abc\ndef\ngh'
+    #s_rep=re.compile(r'\s+|\n')
+    
+    #print(s_rep.sub(' ',test_str))
+    #test_reader1.saveinfile('c:/Users/jxt/Desktop/SecConf/SecurityConferenceCrawler/test.txt')
+    #text=extract_pages(testlink1,page_numbers=[1])
+    #print(text.__class__)
 
 '''
 def writeinfp(each_line):
