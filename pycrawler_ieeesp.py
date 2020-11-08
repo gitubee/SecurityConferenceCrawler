@@ -189,7 +189,7 @@ def crawlconf_dblpieeesp2005(conf_url,conf_str):
     s_rep=re.compile(r'\s+')
 
     session_str='//header/h2'
-    article_url='//nav[@class="publ"]/ul/li/div[@class="body"]/ul/li[@class="ee"][1]/a'
+    article_url='//nav[@class="publ"]/ul/li/div[@class="body"]/ul/li[@class="ee"]/a'
     #article_str='//cite'
     print('start crawl page')
     all_node=html.xpath(session_str+'|'+article_url)
