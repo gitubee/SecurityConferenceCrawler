@@ -35,11 +35,11 @@ def compressinst(all_inst):
                 find_sign=True
                 find_num=j
                 break
-            if find_sign:
-                cross_infer.append(find_num)
-            else:
-                cross_infer.append(len(all_comp_inst))
-                all_comp_inst.append(ei)
+        if find_sign:
+            cross_infer.append(find_num)
+        else:
+            cross_infer.append(len(all_comp_inst))
+            all_comp_inst.append(ei)
     return cross_infer,all_comp_inst
                 
 
@@ -59,12 +59,16 @@ def getarticleinfo_ieeesp(article_url,session_title,number,conf_str):
     #\{"name":"([^",:]*?)","affiliation":\["([^"]*?)"\][^\}]*?\}|\{"name":"([^",:]*?)"[^\}\[\]]*?\}
     ai_re=re.compile(r'\{"name":"([^",:]*?)","affiliation":\["([^"]*?)"\][^\}]*?\}|\{"name":"([^",:]*?)",[^\}\[\]]*?\}')
     IEEE_keyword_re=re.compile(r'\{"type":"IEEE Keywords","kwd":\[([^\]]*?)\]\}')
-    INSPEC_CI_keyword_re=re.compile(r'\{{"type":"INSPEC: Controlled Indexing","kwd":\[([^\]]*?)\]\}')
-    INSPEC_NCI_keyword_re=re.compile(r'\{{"type":"INSPEC: Non-Controlled Indexing","kwd":\[([^\]]*?)\]\}')
+    INSPEC_CI_keyword_re=re.compile(r'\{"type":"INSPEC: Controlled Indexing","kwd":\[([^\]]*?)\]\}')
+    INSPEC_NCI_keyword_re=re.compile(r'\{"type":"INSPEC: Non-Controlled Indexing","kwd":\[([^\]]*?)\]\}')
     each_keyword_re=re.compile(r'"([^"]*?)"')
     pdf_url_re=re.compile(r'"pdfUrl":"([^"]*?)"')
     page_num_re=re.compile(r'"startPage":"([^"]*?)","endPage":"([^"]*?)"')
     doi_re=re.compile(r'"doi":"([^"]*?)"')
+    isbn_re=re.compile(r'"isbn":\[\{"format":"([^"]*?ISBN)","value":"([^"]*?)","isbnType":""\}(?:,\{"format":"([^"]*?ISBN)","value":"([^"]*?)","isbnType":""\})*?\]')
+    issn_re=re.compile(r'"issn":\[\{"format":"([^"]*?ISSN)","value":"([^"]*?)"\}(?:,\{"format":"([^"]*?ISSN)","value":"([^"]*?)"\})*?\]')
+    article_number_re=re.compile(r'"articleNumber":"([0-9]*?)"')
+
 
     title_path='//title/text()'
     article_title=html.xpath(title_path)[0]
@@ -76,7 +80,50 @@ def getarticleinfo_ieeesp(article_url,session_title,number,conf_str):
     info_str=str(info_str)
     #print(info_str)
 
-
+    pdf_url=''
+    pdf_str=pdf_url_re.findall(info_str)
+    if len(pdf_str)>0:
+        pdf_url=pre_url+pdf_str[0]
+    
+    start_page='0'
+    end_page='0'
+    page_num_str=page_num_re.findall(info_str)
+    if len(page_num_str)>0:
+        start_page=str(page_num_str[0][0])
+        end_page=str(page_num_str[0][1])
+    
+    doi=''
+    doi_str=doi_re.findall(info_str)
+    if len(doi_str)>0:
+        doi=doi_str[0]
+    
+    article_number=''
+    article_number_str=article_number_re.findall(info_str)
+    if len(article_number_str)>0:
+        article_number=article_number_str[0]
+    
+    isbn=['','']
+    isbn_str=isbn_re.findall(info_str)
+    if len(isbn_str)>0:
+        isbn_str=isbn_str[0]
+        print(len(isbn_str))
+        pair_num=int(len(isbn_str)/2)
+        for i in range(pair_num):
+            if 'Electronic' in isbn_str[2*i]:
+                isbn[1]=isbn_str[2*i+1]
+            else:
+                isbn[0]=isbn_str[2*i+1]
+    
+    issn=['','']
+    issn_str=issn_re.findall(info_str)
+    if len(issn_str)>0:
+        issn_str=issn_str[0]
+        pair_num=int(len(issn_str)/2)
+        for i in range(pair_num):
+            if 'Electronic' in issn_str[2*i]:
+                issn[1]=issn_str[2*i+1]
+            else:
+                issn[0]=issn_str[2*i+1]
     IEEE_keyword_str=IEEE_keyword_re.findall(info_str)
     IEEE_keyword_str=str(IEEE_keyword_str)
     all_IEEE_keyword=each_keyword_re.findall(IEEE_keyword_str)
@@ -89,23 +136,6 @@ def getarticleinfo_ieeesp(article_url,session_title,number,conf_str):
     INSPEC_NCI_keyword_str=str(INSPEC_NCI_keyword_str)
     all_INSPEC_NCI_keyword=each_keyword_re.findall(INSPEC_NCI_keyword_str)
 
-    pdf_url=''
-    pdf_str=pdf_url_re.findall(info_str)
-    if len(pdf_str)>0:
-        pdf_url=pre_url+pdf_str[0]
-    
-    start_page='0'
-    end_page='0'
-    page_num_str=page_num_re.compile(info_str)
-    if len(page_num_str)>0:
-        start_page=str(page_num_str[0][0])
-        end_page=str(page_num_str[0][1])
-    
-    doi=''
-    doi_str=doi_re.findall(info_str)
-    if len(doi_str)>0:
-        doi=doi_str[0]
-    
     all_ai=ai_re.findall(info_str)
     #print(all_ai)
     all_author=[]
@@ -123,17 +153,25 @@ def getarticleinfo_ieeesp(article_url,session_title,number,conf_str):
     print(all_author)
     print(cross_infer)
     print(all_comp_inst)
-    print(all_IEEE_keyword)
+    #print(all_IEEE_keyword)
+    #print(all_INSPEC_CI_keyword)
+    #print(all_INSPEC_NCI_keyword)
+    #print(article_number)
+    #print(doi)
+    #print(pdf_url)
+    #print(isbn)
+    #print(issn)
+
     #print(pdf_url)
     
-    all_author=';'.join(all_author)
-    all_comp_inst=';'.join(all_comp_inst)
-    all_IEEE_keyword=';'.join(all_IEEE_keyword)
-    all_INSPEC_CI_keyword=';'.join(all_INSPEC_CI_keyword)
-    all_INSPEC_NCI_keyword=';'.join(all_INSPEC_NCI_keyword)
-
+    #all_author=';'.join(all_author)
+    #all_comp_inst=';'.join(all_comp_inst)
+    #all_IEEE_keyword=';'.join(all_IEEE_keyword)
+    #all_INSPEC_CI_keyword=';'.join(all_INSPEC_CI_keyword)
+    #all_INSPEC_NCI_keyword=';'.join(all_INSPEC_NCI_keyword)
+    
     #cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,all_author,all_inst,session_title,all_IEEE_keyword,article_url,pdf_url))
-    conn.commit()
+    #conn.commit()
     return 
     
 
@@ -237,6 +275,18 @@ def crawlconflink(dblp_index):
         this_year=this_year-1
         restart_pos=0
     return
+
+
+
+
+if __name__ == '__main__':
+    test_article_link='https://ieeexplore.ieee.org/document/9152763'
+    getarticleinfo_ieeesp(test_article_link,'aaa',1,['ieee',2001])
+    
+
+
+
+
 conf_url_dblpieeesp2005='https://dblp.uni-trier.de/db/conf/sp/sp2005.html'
 conf_url_dblpieeesp2006='https://dblp.uni-trier.de/db/conf/sp/sp2006.html'
 conf_url_dblpieeesp2007='https://dblp.uni-trier.de/db/conf/sp/sp2007.html'
