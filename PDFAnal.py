@@ -8,7 +8,7 @@ from pdfminer.pdfdevice import PDFDevice
 from pdfminer.layout import LTChar,LTTextLine,LTTextBox,LTFigure,LAParams,LTTextBoxHorizontal
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.high_level import extract_text,extract_pages
-from urllib.request import urlopen
+from urllib.request import urlopen,Request
 from io import StringIO,BytesIO
 import re
 
@@ -283,7 +283,7 @@ def extractblock(pdf_str,article_title,author_list):
 
 class PDFReader:
     block_string=[['@@INFO@@'],['ABSTRACT','abstract','Abstract'],['KEYWORDS','keywords','Keywords'],
-    ['INTRODUCTION','1 INTRODUCTION','Introduction'],['CCS CONCEPTS']]
+    ['INTRODUCTION','1 INTRODUCTION','Introduction','1 Introduction'],['CCS CONCEPTS']]
     def __init__(self,read_file,start_page=0,end_page=1,save_file='',max_part_num=1):
 
         self.read_file=read_file
@@ -315,7 +315,9 @@ class PDFReader:
 
         try:
             if self.read_file.startswith('http'):
-                file_string=urlopen(self.read_file).read()
+                headers = {'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:23.0) Gecko/20100101 Firefox/23.0'}
+                req = Request(url=self.read_file, headers=headers)
+                file_string=urlopen(req).read()
                 all_content=BytesIO(file_string)
             else:
                 all_content=open(self.read_file,'rb')
@@ -376,7 +378,7 @@ class PDFReader:
                 if temp_para.startswith(ekpk):
                     find_sign=True
                     block_rep=r'\A'
-                    block_rep+=ekpk
+                    block_rep+=ekpk+'[^A-Z]*'
                     block_rep=re.compile(block_rep)
                     temp_para=block_rep.sub('',temp_para).strip()
                     break
@@ -457,238 +459,49 @@ class PDFReader:
         if self.save_file=='':
             return
         try:
-            save_fp=open(self.save_file,'w')
+            save_fp=open(self.save_file,'w',encoding='utf-8')
         except Exception as e:
             print(e)
             print('save_file error\n')
             return
         for i in range(len(self.all_part)):
             save_fp.write(self.block_string[self.all_part_kind[i]][0]+'\n')
-            save_fp.write(str(self.all_part[i]))
+            save_fp.write(self.all_part[i])
         save_fp.close()
         return
+    def getabs(self):
+        pdf_abs=''
+        for i in range(len(self.all_part)):
+            if self.all_part_kind[i]==1:
+                pdf_abs=self.all_part[i]
+        return pdf_abs
     def printout(self):
         for i in range(len(self.all_part)):
             print(self.block_string[self.all_part_kind[i]][0])
             print(self.all_part[i])
         return
-print('test')
+
 if __name__ == '__main__':
-    testlink1='https://www.usenix.org/system/files/conference/usenixsecurity18/sec18-scaife.pdf'
+    #usenix示例，因为第一页是usenix封面，所以从1开始读
+
+    testlink1='D:/课程/secconfdata/sec18-scaife.pdf'
+    #网页也可以读,会比较慢
+    #testlink1='https://www.usenix.org/system/files/conference/usenixsecurity18/sec18-scaife.pdf'
     test_reader1=PDFReader(testlink1)
+    #1 是开始读的页数，2是结束的页数，2是读到摘要就停
     test_reader1.startread(1,2,2)
-    test_reader1.printout()
-    #test_str='abc\ndef\ngh'
-    #s_rep=re.compile(r'\s+|\n')
-    
-    #print(s_rep.sub(' ',test_str))
-    #test_reader1.saveinfile('c:/Users/jxt/Desktop/SecConf/SecurityConferenceCrawler/test.txt')
-    #text=extract_pages(testlink1,page_numbers=[1])
-    #print(text.__class__)
-
-'''
-def writeinfp(each_line):
-    each_line=each_line.strip()
-    if each_line is '':
-        return
-
-    global author_inst_line
-    global file_point
-    global read_mod
-    global author_inst_end
-
-    if (each_line.startswith('ABSTRACT') or each_line.startswith('Abstract') or each_line.startswith('abstract')):
-        author_inst_end=True
-    if author_inst_end is False:
-        author_inst_line=author_inst_line+each_line+'\n'
-    if read_mod is 1:
-        file_point.write(each_line+'\n')
-    return
-
-    
-def dyextractLT(each_ltobj):
-    count1=0                                                                               
-    count2=0
-    #obj 计数
-    
-    global shift
-    up_pos=0
-    down_pos=0
-    pre_end=0
-    now_start=0
-    #针对ltchar类型，读取其位置信息，用于区分空格，换行，分割
-    a=0
-    b=0
-    # 用于测试计数，输出若干个
-
-    temp_line=''
-    
-    print(each_ltobj.__class__.__name__)
-    for x in each_ltobj:
-        #遍历所有子对象，处理
-        #print("this is obj"+ str(a))
-        a=a+1
-        if isinstance(x,LTChar):
-            if b>500:
-                break;
-            b=b+1
-            now_bbox=x.bbox
-            #print(now_bbox)
-            if up_pos>=now_bbox[1] and down_pos<=now_bbox[3]:
-                if pre_end<now_bbox[0]:
-                    temp_line=temp_line+' '
-                    #print(' ',end='')
-            else:
-                writeinfp(temp_line)
-                temp_line=''
-                #print('\n',end='')
-            up_pos=now_bbox[1]+shift
-            down_pos=now_bbox[3]-shift
-            temp_line=temp_line+x.get_text()
-            #print(x.get_text(),end='')
-            pre_end=now_bbox[2]+shift
-
-        else:
-            if temp_line is not '':
-                writeinfp(temp_line)
-                temp_line=''
-            if isinstance(x,LTTextBoxHorizontal) or isinstance(x,LTTextBox):
-                writeinfp(x.get_text())
-                #print(x.get_text(),end='')
-            
-            elif isinstance(x,LTTextLine):
-                writeinfp(x.get_text())
-                #print(x.get_text(),end='')
-
-            elif isinstance(x,LTFigure):
-                dyextractLT(x)
-    if temp_line is not '':
-        writeinfp(temp_line)
-        temp_line=''
-        print('')
-    return
-
-def Pdf2Txt(Path,write_file='',search_page=0):
-    global read_mod
-    global file_point
-    global author_inst_line
-    global author_inst_end
-    
-    author_inst_line=''
-    author_inst_end=False
-    
-    if write_file is '':
-        read_mod=0
-        file_point=None
-    else:
-        read_mod=1
-        file_point=open(write_file,'a')
-            
-    mod=read_mod
-
-    
-    if not Path.endswith('.pdf'):
-        print("pdf path error/nplease check the path")
-        
-    if Path.startswith('http'):
-        file_string=urlopen(Path).read()
-        all_content=BytesIO(file_string)
-    else:
-        all_content=open(Path,'rb')
-        
-
-    
-    #来创建一个pdf文档分析器
-    parser = PDFParser(all_content)
-    #创建一个PDF文档对象存储文档结构
-    document = PDFDocument(parser)
-    # 检查文件是否允许文本提取
-    if not document.is_extractable:
-        raise PDFTextExtractionNotAllowed
-    else:
-        # 创建一个PDF资源管理器对象来存储共赏资源
-        rsrcmgr=PDFResourceManager()
-        # 设定参数进行分析
-        laparams=LAParams()
-        # 创建一个PDF设备对象
-        device=PDFPageAggregator(rsrcmgr,laparams=laparams)
-        # 创建一个PDF解释器对象
-        interpreter=PDFPageInterpreter(rsrcmgr,device)
-        # 只需要处理第一页
-        all_pages=PDFPage.create_pages(document)
-        #first_page =all_pages.__next__()
-        #second_page=all_pages.__next__()
-        now_page_num=0
-        for page in all_pages:
-            if now_page_num<search_page:
-                now_page_num=now_page_num+1
-                continue
-            interpreter.process_page(page)
-                # 接受该页面的LTPage对象
-            layout=device.get_result()
-            dyextractLT(layout)
-            if mod is 0:
-                break
-            
-        
-    all_content.close()
-    return author_inst_line
+    abs_str=str(test_reader1.getabs())
+    print(abs_str)
+    #ndss ccs IEEE 示例
+    '''
+    testlink2='https://www.ndss-symposium.org/wp-content/uploads/2017/09/Document-Structure-Integrity-A-Robust-Basis-for-Cross-site-Scripting-Defense-Yacin-Nadji.pdf'
+    test_reader2=PDFReader(testlink1)
+    test_reader2.startread(0,1,2)
+    abs_str=str(test_reader2.getabs())
+    print(abs_str)
+    '''
 
 
-        
-
-    
-
-#all_content = open('Neuhaus.pdf', 'rb')
-#print(all_content.readline())
-#print(all_content.readline())
-
-
-#path_open=urlopen(url)
-#first_line=path_open.readline()
-#second_line=path_open.readline()
-#print("this is first line:")
-#print(first_line)
-#print(second_line)
-#all_content=path_open.read()
-#all_content = BytesIO(all_content)
-
-#all_content.close()
-#Path.close()
-#path_url.close()
-
-
-if __name__=='__main__':
-    this_ai=Pdf2Txt('https://www.usenix.org/system/files/sec19-demontis.pdf',search_page=1)
-    print(this_ai)
-    test_title='Why Do Adversarial Attacks Transfer? Explaining Transferability of Evasion and Poisoning Attacks'
-    author_list=['Ambra Demontis','Cristina Nita-Rotaru','Matthew Jagielski']
-    pdf_ex=extractblock(this_ai,test_title,author_list)
-    print(pdf_ex[0])
-    print(pdf_ex[1])
-    print(pdf_ex[2])
-    print(pdf_ex[3])
-    print(pdf_ex[4])
-'''
-'''
-test_pa=re.compile(r'{.+?}')
-test_str='afd eb, {ase ,resf}@.edu, {zq,yq}@mail, jxt@mail'
-test_str=test_pa.sub('',test_str)
-print(test_str)
-'''
-
-'''
-test_str='(cid:45),cdi()eageg345  q3 r afswe(cid:) (cid:1),(cid:45)'
-#all_cid=re.findall('\(cid:(\d+)\)',test_str)
-all_cid=list(set(all_cid))
-cid_dict={}
-base=9
-for i in all_cid:
-    test_str=test_str.replace('(cid:'+i+')',str(base))
-    base=base-1
-print(all_cid)
-print(test_str)
-'''
 
 #   作者信息有可能在备注里，作者名会带*十字等奇怪符号，邮箱字符串处理，部门包含学校与学院，国家，城市，且与邮箱的位置不固定
 
