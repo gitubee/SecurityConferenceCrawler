@@ -2,8 +2,12 @@ import requests
 import re
 import pymysql
 from lxml import etree
+import string
+import xml.etree.ElementTree  as ET
+import pycrawler_dblp
 
-conn = pymysql.connect('localhost', user='root',password='root',database='pylink1',charset='utf8')
+
+conn = pymysql.connect('localhost', user='root',password='123456',database='secconf',charset='utf8mb4')
 cursor = conn.cursor()
 
 
@@ -530,9 +534,9 @@ str_2016=[find_str2016,'h2','a','p',url_path2005,ai_path2016]
 #crawlconf_ndss2020(conf_url_ndss2020,sql_str)
 
 sql_str=['ndss',2018]
-crawlconf_ndss2018(conf_url_ndss2018,sql_str)
-cursor.close()
-conn.close()
+#crawlconf_ndss2018(conf_url_ndss2018,sql_str)
+
+
 
 
 #test_str='jiaoxiaotong and Angandelos Stavrou, (Columbia University) ; Angelos D. Keromytis, sandiago University; Jason Nieh, Columbia University; Vishal Misra, Columbia University; Dan Rubenstein, Columbia University'
@@ -540,5 +544,73 @@ conn.close()
 
 #print(delauthorlist2(test_str))
 
+conf_data_col=['booktitle','year','number','key','title','block_title','editors','publisher','isbn','ee','url']
+conf_col_dict={'booktitle':0,'year':1,'title':4,'editor':6,'publisher':7,'isbn':8,'ee':9,'url':10}
+
+def crawl_dblp(dblp_link,find_dict,insert_table,values_num,start_block=0,start_num=0):
+    global conn
+
+    insert_sql='insert into {}() values'.format(insert_table)
+    str_sql='(%s'+',%s'*(values_num-1)+')'
+    insert_sql+=str_sql
+    cursor=conn.cursor()
+    conf_xml_block=pycrawler_dblp.crawlpagexml(dblp_link)
+    now_number=start_num
+    now_year=0
+    #print(conf_xml_block)
+    #print(conf_xml_block)
+    for eb in conf_xml_block[start_block:]:
+        temp_data=['' for i in range(values_num)]
+        for eb_xml in eb[1:]:
+            if now_number<0:
+                now_number+=1
+                continue
+            xml_string=gethtmltext(eb_xml)
+            xml_tree=ET.fromstring(xml_string)
+            #xml_root=xml_tree.xpath('.//node()')
+            process_node=xml_tree.findall('./inproceedings')[0]
+            for key in find_dict:
+                this_num=find_dict[key]
+                all_child=process_node.findall('./'+key)
+                temp_text=[]
+                for ec in all_child:
+                    temp_text.append(ec.text)
+                temp_data[this_num]=';'.join(temp_text)
+            this_year=int(temp_data[find_dict['year']])
+            if this_year<now_year:
+                now_number=0
+                temp_data[2]=now_number
+            else:
+                temp_data[2]=now_number
+                now_number+=1
+            now_year=this_year
+            
+            temp_data[3]=process_node.get('key')
+            temp_data[5]=eb[0]
+            #print(temp_data)
+            cursor.execute(insert_sql,temp_data)
+            conn.commit()
+    return
+def crawlarticle_dblp(dblp_conf_table):
+    global conn
+    article_col_dict={'booktitle':0,'year':1,'title':4,'author':7,'pages':6,'crossref':8,'ee':9}
+    dblp_pre_url='https://dblp.uni-trier.de/'
+    cursor1=conn.cursor()
+    find_sql='select url from {}'.format(dblp_conf_table)
+    for i in range(2020,2005,-1):
+        where_sql=' where year={}'.format(str(i))
+        cursor1.execute(find_sql+where_sql)
+        for el in cursor1.fetchall():
+            dblp_url=dblp_pre_url+el[0]
+            crawl_dblp(dblp_url,article_col_dict,'article_info_dblp',10,0,-1)
+    return 
+if __name__=='__main__':
+    #article_col_dict={'booktitle':0,'year':1,'title':4,'author':7,'pages':6,'crossref':8,'ee':9}
+    #dblp_url='https://dblp.uni-trier.de/db/conf/ndss/ndss2005.html'
+    #crawl_dblp(dblp_url,article_col_dict,'article_info_dblp',10,0,-1)
+    crawlarticle_dblp('conf_info_dblp')
+
+conn.close()
+    
 
 

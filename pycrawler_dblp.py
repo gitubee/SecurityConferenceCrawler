@@ -33,44 +33,35 @@ def crawlpagexml(dblp_page):
 
     #set the conf xpath str
     block_node='//header/h2'
-    single_node='//nav[@class="publ"]/ul/li/div[@class="body"]/ul[3]/li[5]/a'
+    single_node='//nav[@class="publ"]/ul[1]/li[2]/div[@class="body"]/ul/li[5]/a'
     
     all_node=html.xpath(block_node+'|'+single_node)
 
     # split the conf url depending the the year
     all_block=[]
     each_block=[]
-    have_block=False
     for en in all_node:
+        #print(en.tag)
         if en.tag=='h2':
-            have_block=True
-            if len(each_block)>1:
+            if len(each_block)>0:
                 all_block.append(each_block)
-            each_block=[en]
+            #print(en.text)
+            each_block=[en.text]
         elif len(each_block)!=0:
-            each_block.append(en)
-    if not have_block:
-        each_block=['']
-        each_block+=all_node
+            #print(en.get('href'))
+            each_block.append(en.get('href'))
+        else:
+            each_block=['',en.get('href')]
     if len(each_block)>1:
         all_block.append(each_block)
     
-    all_output=[]
-    temp_block=[]
-    #crawl each year's conf data 
-    for eb in all_block:
-        if eb[0]!='':
-            temp_block=[eb[0].text]
-        else:
-            temp_block=['']
-        for ep in eb[1:]:
-            this_xml=ep.get('href')
-        temp_block.append(this_xml)
-        all_output.append(temp_block)
-    return all_output
+    return all_block
 
 #give an example of read data of xml link
 if __name__=='__main__':
+    #conf_dblpndss='https://dblp.uni-trier.de/db/conf/ndss/index.html'
+    #crawlpagexml(conf_dblpndss)
+    '''
     xml_link='https://dblp.uni-trier.de/rec/conf/ccs/2012.xml'
     xml_string=gethtmltext(xml_link)
     xml_tree=ET.fromstring(xml_string)
@@ -86,4 +77,4 @@ if __name__=='__main__':
         temp_pair=[etag,valu]
         all_pair.append(temp_pair)
         print(etag+'@'+valu)
-    
+    '''
