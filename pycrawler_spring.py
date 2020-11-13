@@ -84,17 +84,17 @@ def getarticleinfo_springer(article_url,session,number,conf_str):
     last_page=html.xpath('/html/head/meta[@name="citation_lastpage"]')[0]
     first_page=int(first_page.get('content'))
     last_page=int(last_page.get('content'))
-    pdf_node=html.xpath('/html/head/meta[@name="citation_pdf_url"]')
-    pdf_url=''
-    if len(pdf_node)>0:
-        pdf_url=pdf_node[0].get('content')
+    #pdf_node=html.xpath('/html/head/meta[@name="citation_pdf_url"]')
+    #pdf_url=''
+    #if len(pdf_node)>0:
+        #pdf_url=pdf_node[0].get('content')
     doi=html.xpath('/html/head/meta[@name="citation_doi"]')[0]
     doi=doi.get('content').strip()
-    citation_num=html.xpath('//div[@class="main-context__column"]/ul[@id="book-metrics"]/li[1]/a/span[@id="chaptercitations-count-number"]/text()')
-    citation_count=0
+    #citation_num=html.xpath('//div[@class="main-context__column"]/ul[@id="book-metrics"]/li[1]/a/span[@id="chaptercitations-count-number"]/text()')
+    #citation_count=0
     
-    if len(citation_num)>0:
-        citation_count=int(citation_num[0].strip())
+    #if len(citation_num)>0:
+        #citation_count=int(citation_num[0].strip())
     
     #get the athur inst info
     author_node=html.xpath('//section[@id="authorsandaffiliations"]/div/ul/li')
@@ -174,13 +174,11 @@ def getarticleinfo_springer(article_url,session,number,conf_str):
     #print(all_city)
     #print(all_country)
     #print(ok)
-    print(pdf_url)
+    #print(pdf_url)
 
     
-    sql='insert into article_info_springer(conf,year,number,title,doi,authors,email_tag,session,\
-        cross_infer,insts,citys,countrys,firstpage,lastpage,keywords,citation,pdf_url,article_url) \
-            values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
-    cursor.execute(sql,(conf_str[0],conf_str[1],number,article_title,doi,oa,oet,session,oac,oi,oc1,oc2,first_page,last_page,ok,citation_count,pdf_url,article_url))
+    sql='insert into article_info_springer() values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
+    cursor.execute(sql,(conf_str[0],conf_str[1],number,article_title,doi,oa,oet,session,oac,oi,oc1,oc2,first_page,last_page,ok))
     conn.commit()
     return
 
@@ -304,9 +302,9 @@ dblp_index_ASIACRYPT='https://dblp.uni-trier.de/db/conf/asiacrypt/index.html'
 dblp_index_EUROCRYPT='https://dblp.uni-trier.de/db/conf/eurocrypt/index.html'
 dblp_index_CRYPT='https://dblp.uni-trier.de/db/conf/crypto/index.html'
 
-crawlconflink(dblp_index_CRYPT)
+#crawlconflink(dblp_index_CRYPT)
 #crawlconf_springer2005(0,'https://link.springer.com/book/10.1007%2F978-3-030-34578-5',['ASIACRYPT',2019])
-#getarticleinfo(r'https://link.springer.com/chapter/10.1007/3-540-39568-7_5','Public Key Cryptosystems and Signatures',4,['CRYPTO',1984])
+getarticleinfo_springer(r'https://link.springer.com/chapter/10.1007/3-540-44987-6_1','Elliptic Curves',0,['EUROCRYPT',2001])
 
 
 conn.close()
