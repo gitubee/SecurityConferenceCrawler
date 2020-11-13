@@ -49,8 +49,8 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     article_kind=article_kind[0]
     #set sql string and re str
     insert_sql="insert into article_info_ccs(conf,year,number,title,doi,authors,inst_info,firstpage,lastpage,\
-    kind,session,index_terms,keywords,pdf_url)\
-    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+    kind,session,index_terms,keywords)\
+    values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
 
     s_rep=re.compile(r'\s+')
     num_find=re.compile(r'[0-9]+')
@@ -112,7 +112,7 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
     oii=';'.join(all_inst_infos)
     oit=';'.join(all_index_terms)
     
-    cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,article_doi,oa,oii,first_page,last_page,article_kind,session,oit,ok,pdf_url))
+    cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,article_doi,oa,oii,first_page,last_page,article_kind,session,oit,ok))
     conn.commit()
     return 1
 
@@ -203,6 +203,7 @@ def crawlconf_ccs1993(start_num,conf_url,conf_str):
                 print('='*10+'this is '+str(article_count)+' article =========')
                 print(ed)
                 ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
+
             except Exception as e:
                 f=open('./'+error_file,'a+')
                 f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
@@ -210,7 +211,7 @@ def crawlconf_ccs1993(start_num,conf_url,conf_str):
                 f.write(repr(e)+'\n')
                 f.close()
                 ret_num=1
-                
+
             article_count=article_count+ret_num
     # return the article count for the following url of the same conf
     return article_count
@@ -353,12 +354,14 @@ for ec in conf_url_ccs_11_04:
     start_num=0
     if this_year==2007 or this_year==2006 or this_year==2004:
         start_num=1
-    crawlconf_ccs2003(start_num,ec,['CCS',this_year])
+    #crawlconf_ccs2003(start_num,ec,['CCS',this_year])
     this_year=this_year-1
     restart_pos=0
 #crawlconf_ccs(30,test_conf_url,['CCS',2019])
-#getarticleinfo_ccs(test_article_doi1,'test',1,['CCS',1111])
 
-
+error_link='10.1145/1030083.1030093'
+#getarticleinfo_ccs(error_link,'SESSION: Access control',35,['CCS',2004])
+test_conf_url='https://dl.acm.org/doi/proceedings/10.1145/352600'
+crawlconf_ccs1993(0,test_conf_url,['CCS',2000])
 cursor.close()
 conn.close()
