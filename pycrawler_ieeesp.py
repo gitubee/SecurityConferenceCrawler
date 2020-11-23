@@ -23,24 +23,7 @@ def gethtmltext(url):#以agent为浏览器的形式访问网页,返回源码,参
         return 'error'
     return
 
-def compressinst(all_inst):
-    all_comp_inst=[]
-    cross_infer=[]
-    find_sign=False
-    find_num=-1
-    for ei in all_inst:
-        find_sign=False
-        for j in range(len(all_comp_inst)):
-            if ei == all_comp_inst[j]:
-                find_sign=True
-                find_num=j
-                break
-        if find_sign:
-            cross_infer.append(find_num)
-        else:
-            cross_infer.append(len(all_comp_inst))
-            all_comp_inst.append(ei)
-    return cross_infer,all_comp_inst
+
 def excompinst(all_ai_pair):
     each_re=re.compile('"([^"]*)"')
     comp_inst=[]

@@ -15,7 +15,7 @@ doi_pre_url='https://dl.acm.org/doi/'
 sql_str=['ccs',2020]
 conf_abbr_list=['CCS']
 restart_pos=0
-error_file='error_file.txt'
+error_file='error_file_ccs20.txt'
 
 
 
@@ -30,7 +30,25 @@ def gethtmltext(url):#以agent为浏览器的形式访问网页,返回源码,参
         return 'error'
     return
 
-
+def compressinst(all_inst):
+    all_comp_inst=[]
+    cross_infer=[]
+    find_sign=False
+    find_num=-1
+    for eis in all_inst:
+        ei=eis
+        find_sign=False
+        for j in range(len(all_comp_inst)):
+            if ei == all_comp_inst[j]:
+                find_sign=True
+                find_num=j
+                break
+        if find_sign:
+            cross_infer.append(find_num)
+        else:
+            cross_infer.append(len(all_comp_inst))
+            all_comp_inst.append(ei)
+    return cross_infer,all_comp_inst
 def getarticleinfo_ccs(article_doi,session,number,conf_str):
     global conn
     global cursor
@@ -48,8 +66,8 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
         return 0
     article_kind=article_kind[0]
     #set sql string and re str
-    insert_sql="insert into article_info_ccs(conf,year,number,title,doi,authors,inst_info,firstpage,lastpage,\
-    kind,session,index_terms,keywords)\
+    insert_sql="insert into article_info_ccs(conf,year,title,doi,authors,cross_infer,inst_info,\
+    kind,session,start_page,end_page,index_terms,keywords)\
     values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
 
     s_rep=re.compile(r'\s+')
@@ -75,10 +93,6 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
             first_page=int(all_num[0])
             last_page=int(all_num[1])
     #pdf urls
-    pdf_url_node=html.xpath('//a[@title="PDF"]/@href')
-    pdf_url=''
-    if len(pdf_url_node)>0:
-        pdf_url=pre_url+pdf_url_node[0]
 
     all_index_terms=html.xpath('//ol[@class="rlist organizational-chart"]/li/ol//node()/text()')
 
@@ -101,18 +115,21 @@ def getarticleinfo_ccs(article_doi,session,number,conf_str):
         all_inst_infos.append(this_inst)
         
     #print some info
+    cross_infer,all_comp_inst=compressinst(all_inst_infos)
     print(article_title)
     print(article_url)
     print(all_authors)
-    print(all_inst_infos)
+    print(all_comp_inst)
     print(all_keywords)
     #concate data to input database
     ok=';'.join(all_keywords)
     oa=';'.join(all_authors)
-    oii=';'.join(all_inst_infos)
+    #oii=';'.join(all_inst_infos)
+    ocr=';'.join(list(map(str,cross_infer)))
+    ocii=';'.join(all_comp_inst)
     oit=';'.join(all_index_terms)
     
-    cursor.execute(insert_sql,(conf_str[0],conf_str[1],number,article_title,article_doi,oa,oii,first_page,last_page,article_kind,session,oit,ok))
+    cursor.execute(insert_sql,(conf_str[0],conf_str[1],article_title,article_doi,oa,ocr,ocii,article_kind,session,first_page,last_page,oit,ok))
     conn.commit()
     return 1
 
@@ -149,10 +166,12 @@ def crawlconf_ccs2003(start_num,conf_url,conf_str):
                 article_count+=1
                 continue
             ret_num=0
-            try:
-                print('='*10+'this is '+str(article_count)+' article =========')
-                print(ed)
-                ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
+            #try:
+            print('='*10+'this is '+str(article_count)+' article =========')
+            print(ed)
+            ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
+
+            '''
             except Exception as e:
                 f=open('./'+error_file,'a+')
                 f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
@@ -160,6 +179,7 @@ def crawlconf_ccs2003(start_num,conf_url,conf_str):
                 f.write(repr(e))
                 f.close()
                 ret_num=1
+                '''
             article_count=article_count+ret_num
     # return the article count for the following url of the same conf
     return article_count
@@ -203,7 +223,7 @@ def crawlconf_ccs1993(start_num,conf_url,conf_str):
                 print('='*10+'this is '+str(article_count)+' article =========')
                 print(ed)
                 ret_num=getarticleinfo_ccs(ed,session_title,article_count,conf_str)
-
+                
             except Exception as e:
                 f=open('./'+error_file,'a+')
                 f.write('='*30+conf_str[0]+' '+str(conf_str[1])+'\n')
@@ -359,9 +379,9 @@ for ec in conf_url_ccs_11_04:
     restart_pos=0
 #crawlconf_ccs(30,test_conf_url,['CCS',2019])
 
-error_link='10.1145/1030083.1030093'
+#error_link='10.1145/1030083.1030093'
 #getarticleinfo_ccs(error_link,'SESSION: Access control',35,['CCS',2004])
-test_conf_url='https://dl.acm.org/doi/proceedings/10.1145/352600'
-crawlconf_ccs1993(0,test_conf_url,['CCS',2000])
+test_conf_url='https://dl.acm.org/doi/proceedings/10.1145/3372297'
+crawlconf_ccs2003(0,test_conf_url,['CCS',2020])
 cursor.close()
 conn.close()
