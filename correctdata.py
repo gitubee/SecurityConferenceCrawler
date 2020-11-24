@@ -2,37 +2,11 @@ import re
 import pymysql
 import string
 import requests
+from basefunc import compressinst,concateinfer,refreshindex,readcrossinfer,removeblock
+
 
 conn = pymysql.connect('localhost', user='root',password='123456',database='secconf',charset='utf8mb4')
-def compressinst(all_inst):
-    all_comp_inst=[]
-    cross_infer=[]
-    temp_infer=[]
-    find_sign=False
-    find_num=-1
-    for eis in all_inst:
-        eis=re.split(':',eis)
-        temp_infer=[]
-        for ei in eis:
-            find_sign=False
-            for j in range(len(all_comp_inst)):
-                if ei == all_comp_inst[j]:
-                    find_sign=True
-                    find_num=j
-                    break
-            if find_sign:
-                temp_infer.append(find_num)
-            else:
-                temp_infer.append(len(all_comp_inst))
-                all_comp_inst.append(ei)
-        cross_infer.append(temp_infer)
-    return cross_infer,all_comp_inst
 
-def concateinfer(cross_infer):
-    cross_infer_str=[]
-    for eci in cross_infer:
-        cross_infer_str.append(':'.join(list(map(str,eci))))
-    return ';'.join(cross_infer_str)
 def genecrossinfer(article_table):
     global conn
     cursor1=conn.cursor()
@@ -86,7 +60,33 @@ def genecrossinfer_usenix(article_table):
         conn.commit()
     cursor2.close()
     return
-
+def correctfenblock(article_table):
+    global conn
+    cursor1=conn.cursor()
+    cursor2=conn.cursor()
+    sel_sql="select year,number,authors,cross_infer,inst_info from {} where authors like '%; %'  or inst_info like '%; %'".format(article_table)
+    cursor1.execute(sel_sql)
+    for el in cursor1.fetchall():
+        all_a=el[2]
+        if '; ' in all_a:
+            print('author_change')
+            print(all_a)
+            all_a=re.split(r';',all_a)
+            all_a=removeblock(all_a)
+            all_a=';'.join(all_a)
+        inst_info=el[4]
+        cross_infer_str=el[3]
+        if '; ' in inst_info:
+            print('inst_change')
+            cross_infer=readcrossinfer(cross_infer_str)
+            ii,inst_info=compressinst(inst_info)
+            cross_infer=refreshindex(cross_infer,ii)
+            cross_infer_str=concateinfer(cross_infer)
+            inst_info=';'.join(inst_info)
+        update_sql="update {} set authors='{}',cross_infer='{}',inst_info='{}' where year={} and number={}".format(article_table,all_a,cross_infer_str,inst_info,el[0],el[1])
+        cursor2.execute(update_sql)
+        conn.commit()
+    return 
 def correctauthor(author_table,inst_table):
     global conn
     cursor1=conn.cursor()
@@ -113,6 +113,11 @@ def correctauthor(author_table,inst_table):
         conn.commit()
     return
 
-#correctauthor('all_author_ccs','ori_inst')
-#genecrossinfer_usenix('all_article_usenix')
-genecrossinfer('article_info_usenix')
+
+if __name__=='__main__':
+    #correctauthor('all_author_ccs','ori_inst')
+    #genecrossinfer_usenix('all_article_usenix')
+    #genecrossinfer('article_info_usenix')
+    #print(readcrossinfer('0:1;0:1;0:1;0:1;0;1'))
+    #print(refreshindex([[1,2,3],[2,4]],[[0,1],[1,2],[3,1],[2,3],[1,3]]))
+    correctfenblock('article_info_usenix')

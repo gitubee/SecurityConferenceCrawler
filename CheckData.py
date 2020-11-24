@@ -24,5 +24,25 @@ def checkarticlepage(article_table,page_str):
                 now_end=e_p+2
             now_end=e_p+2
     return
+
+def checkarticlenumber(article_table):
+    global conn
+    cursor1=conn.cursor()
+    now_number=0
+    sel_sql="select conf,year,number from {} where conf='NDSS'".format(article_table)
+    for i in range(1980,2021):
+        where_sql=' and year={}'.format(str(i))
+        print(where_sql)
+        cursor1.execute(sel_sql+where_sql)
+        now_number=0
+        for el in cursor1.fetchall():
+            tag=str(el[0])+';'+str(el[1])+';'+str(el[2])
+            if now_number!=el[2]:
+                now_number=el[2]+1
+                print(tag+'error1')
+                continue
+            now_number+=1
+    return
 if __name__=='__main__':
-    checkarticlepage('article_info_springer',['start_page','end_page'])
+    #checkarticlepage('article_info_springer',['start_page','end_page'])
+    checkarticlenumber('article_info_ndss')

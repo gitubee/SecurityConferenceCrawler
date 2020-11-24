@@ -4,7 +4,7 @@ import pymysql
 import string
 import requests
 from lxml import etree
-
+from basefunc import removeblock,delsession
 conn = pymysql.connect('localhost', user='root',password='123456',database='secconf',charset='utf8mb4')
 ieee_pre_url_list={'base':'https://ieeexplore.ieee.org/','article':'https://ieeexplore.ieee.org/document/','pdf':'https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber='}
 doi_pre_url_list={'base':'https://doi.org/'}
@@ -21,42 +21,7 @@ def gethtmltext(url):#以agent为浏览器的形式访问网页,返回源码,参
             return r.text
       except:
             return 'error'
-def removeblock(author_list):
-    global special_pattern
-    re_info=re.compile(r'\s+')
-    new_list=[]
-    for es in author_list:
-        temp=re_info.sub(' ',es).strip()
-        if temp!='':
-            new_list.append(temp)
-    return new_list
-def delsession(session_title,start_num=4,end_num=2):
-    none_str='Potpourri'
-    if none_str in session_title:
-        return ''
-    s_rep=re.compile(r'\s+')
-    session_title=s_rep.sub(' ',session_title)
-    session_title=session_title.strip()
-    if session_title=='':
-        return ''
-    start_rep1=re.compile(r'^Session[0-9A-Za-z\-\s]*?:')
-    
-    start_rep2=re.compile(r'^[1-9A-Za-z\-#\s]*?:')
-    start_rep3=re.compile(r'^Paper Session[0-9A-Za-z-\s]*?:')
-    start_rep4=re.compile(r'^Session[0-9A-Za-z\-\s]*?\-\-')
-    start_rep5=re.compile(r'^Session[0-9A-Za-z\-\s]*?\-')
-    start_rep=[start_rep1,start_rep2,start_rep3,start_rep4,start_rep5]
-    end_rep1=re.compile(r'[IV0-9]+$')
-    end_rep2=re.compile(r'\([0-9]+\)$')
-    end_rep=[end_rep1,end_rep2]
-    
-    for i in range(start_num):
-        session_title=start_rep[i].sub('',session_title)
-    for i in range(end_num):
-        session_title=end_rep[i].sub('',session_title)
 
-    session_title=session_title.strip()
-    return session_title
 def transieee(ieee_table,insert_table):
     global conn
     cursor1=conn.cursor()
@@ -191,10 +156,11 @@ def sametrans(start_table,end_table):
 
 def transinstinfo(from_table,into_table,inst_col,insert_col):
     return 
-#genecrossinfer('article_info_ccs')
-#IAC-CNR, Viale del Policlinico, 137, 00161 Rome, Italy;Dip. Scienze Informazione, Univ. di Roma "La Sapienza", 00198 Rome, Italy
-#transccs('article_info_ccs','article_info_ci')
-#transieee('article_info_ieeesp','article_info_ci')
-#transpredata('article_info_nd','article_info_usenix')
-sametrans('all_article_usenix','article_info_usenix')
-conn.close()
+if __name__=='__main__':
+    #genecrossinfer('article_info_ccs')
+    #IAC-CNR, Viale del Policlinico, 137, 00161 Rome, Italy;Dip. Scienze Informazione, Univ. di Roma "La Sapienza", 00198 Rome, Italy
+    #transccs('article_info_ccs','article_info_ci')
+    #transieee('article_info_ieeesp','article_info_ci')
+    #transpredata('article_info_nd','article_info_usenix')
+    sametrans('all_article_usenix','article_info_usenix')
+    conn.close()
